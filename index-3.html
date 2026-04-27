@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bias Audit — Student Dropout Prediction</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0d1117; color: #e6edf3; font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #161b22; }
+    ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+    .header { margin-bottom: 1.5rem; }
+    .header-title { display: flex; align-items: center; gap: .7rem; margin-bottom: .35rem; }
+    .header-bar { width: 4px; height: 1.8rem; background: #f59e0b; border-radius: 2px; flex-shrink: 0; }
+    h1 { font-size: 1.25rem; font-weight: 700; }
+    .sub { color: #8b949e; font-size: .78rem; padding-left: 1.1rem; }
+    .tabs { display: flex; gap: .2rem; border-bottom: 1px solid #21262d; margin-bottom: 1.5rem; }
+    .tab-btn { padding: .45rem .9rem; background: transparent; border: none; border-bottom: 2px solid transparent; color: #8b949e; font-family: inherit; font-size: .78rem; font-weight: 400; cursor: pointer; margin-bottom: -1px; transition: color .15s; }
+    .tab-btn.active { color: #f59e0b; border-bottom-color: #f59e0b; font-weight: 700; }
+    .tab-btn:hover:not(.active) { color: #e6edf3; }
+    .card { background: #161b22; border: 1px solid #21262d; border-radius: 10px; padding: 1.1rem; }
+    .clabel { font-size: .7rem; color: #8b949e; text-transform: uppercase; letter-spacing: .07em; margin-bottom: .85rem; }
+    .g11 { display: grid; grid-template-columns: 1.1fr .9fr; gap: .85rem; }
+    .g21 { display: grid; grid-template-columns: 1.2fr .8fr; gap: .85rem; }
+    .g12 { display: grid; grid-template-columns: 1.3fr .7fr; gap: .85rem; }
+    .g2  { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem; }
+    .g4  { display: grid; grid-template-columns: repeat(4,1fr); gap: .75rem; }
+    .mb  { margin-bottom: .85rem; }
+    .col { display: flex; flex-direction: column; gap: .65rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th { font-weight: 500; color: #8b949e; font-size: .75rem; padding-bottom: .5rem; border-bottom: 1px solid #21262d; }
+    th.l, td.l { text-align: left; }
+    th.r, td.r { text-align: right; }
+    td { font-size: .78rem; padding: .45rem .1rem; border-bottom: 1px solid #21262d; color: #e6edf3; }
+    td.mono { font-family: monospace; }
+    td.dim  { color: #8b949e; }
+    tr.hl td { background: rgba(245,158,11,.05); }
+    .badge { display: inline-block; padding: .1rem .4rem; border-radius: 4px; font-size: .68rem; font-weight: 700; margin-right: .4rem; }
+    .mbar { display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; }
+    .mbar-track { flex: 1; height: 5px; background: #21262d; border-radius: 3px; }
+    .mbar-fill  { height: 100%; border-radius: 3px; }
+    .mbar-val   { font-family: monospace; font-size: .75rem; width: 3rem; text-align: right; }
+    .alert { background: rgba(245,158,11,.07); border: 1px solid rgba(245,158,11,.3); border-radius: 8px; padding: .85rem 1rem; margin-bottom: 1rem; display: flex; gap: .65rem; align-items: flex-start; }
+    .alert-icon { font-size: 1.1rem; flex-shrink: 0; }
+    .alert-title { color: #f59e0b; font-weight: 700; font-size: .85rem; margin-bottom: .2rem; }
+    .alert-text  { color: #8b949e; font-size: .78rem; }
+    .bline { display: flex; justify-content: space-around; }
+    .bline-item { text-align: center; }
+    .bline-val   { font-size: .95rem; font-weight: 700; font-family: monospace; }
+    .bline-model { font-size: .65rem; color: #8b949e; }
+    .cbar-track { height: 4px; background: #21262d; border-radius: 2px; }
+    .cbar-fill  { height: 100%; border-radius: 2px; }
+    .feat-row { display: flex; align-items: center; gap: .55rem; margin-bottom: .65rem; }
+    .feat-rank { width: 1.3rem; height: 1.3rem; background: #21262d; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .62rem; color: #8b949e; flex-shrink: 0; }
+    .feat-lbl { font-size: .72rem; margin-bottom: .18rem; }
+    .feat-val { font-family: monospace; font-size: .72rem; font-weight: 600; white-space: nowrap; }
+    .accent-bar { width: 3px; border-radius: 2px; flex-shrink: 0; }
+    .insight { border-radius: 6px; padding: .65rem; font-size: .75rem; color: #8b949e; line-height: 1.65; }
+    .expl { background: #161b22; border: 1px solid rgba(245,158,11,.2); border-radius: 10px; padding: 1.1rem; margin-top: .85rem; }
+    .expl h3 { font-size: .85rem; font-weight: 700; margin-bottom: .65rem; }
+    .expl p  { color: #8b949e; font-size: .8rem; line-height: 1.75; }
+    .footer { margin-top: 1.75rem; padding-top: .85rem; border-top: 1px solid #21262d; display: flex; justify-content: space-between; }
+    .footer p { color: #8b949e; font-size: .68rem; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="header-title">
+      <div class="header-bar"></div>
+      <h1>Bias Audit — Student Dropout Prediction</h1>
+    </div>
+    <p class="sub">Portuguese secondary education · UCI dataset · 4 ML models evaluated for socio-demographic bias</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('performance',this)">📊 Model Performance</button>
+    <button class="tab-btn" onclick="showTab('fpr',this)">⚠️ FPR Disparities</button>
+    <button class="tab-btn" onclick="showTab('features',this)">🔍 Feature Importance</button>
+    <button class="tab-btn" onclick="showTab('corr',this)">📈 Correlations</button>
+  </div>
+
+  <!-- PERFORMANCE -->
+  <div id="tab-performance" class="tab-content active">
+    <div class="g11 mb">
+      <div class="card">
+        <div class="clabel">Performance Metrics</div>
+        <table><thead><tr>
+          <th class="l">Model</th>
+          <th class="r">Accuracy</th><th class="r">Precision</th>
+          <th class="r">Recall</th><th class="r">AUC</th>
+        </tr></thead>
+        <tbody id="perf-tbody"></tbody></table>
+      </div>
+      <div class="card">
+        <div class="clabel">Radar Comparison (65–95%)</div>
+        <canvas id="radarChart"></canvas>
+      </div>
+    </div>
+    <div class="g4" id="minibars"></div>
+  </div>
+
+  <!-- FPR -->
+  <div id="tab-fpr" class="tab-content">
+    <div class="alert">
+      <span class="alert-icon">⚠️</span>
+      <div>
+        <div class="alert-title">Financial variables drive extreme miscategorisation</div>
+        <div class="alert-text">Students with unpaid tuition fees are miscategorised up to <strong style="color:#f59e0b">64.3%</strong>. Debtors reach up to <strong style="color:#f87171">34.3%</strong>. Baseline for other groups: 5–12% — a 5× to 12× disparity.</div>
+      </div>
+    </div>
+    <div class="g21 mb">
+      <div class="card">
+        <div class="clabel">FPR by Group &amp; Model</div>
+        <canvas id="fprChart"></canvas>
+      </div>
+      <div class="col">
+        <div class="card" id="callout-tuition" style="border-color:rgba(245,158,11,.4)"></div>
+        <div class="card" id="callout-debtor"  style="border-color:rgba(248,113,113,.4)"></div>
+        <div class="card" style="padding:.85rem">
+          <div style="font-size:.7rem;color:#8b949e;margin-bottom:.5rem">Baseline — Gender (Male)</div>
+          <div class="bline">
+            <div class="bline-item"><div class="bline-val">12.6%</div><div class="bline-model">GB</div></div>
+            <div class="bline-item"><div class="bline-val">11.4%</div><div class="bline-model">LR</div></div>
+            <div class="bline-item"><div class="bline-val">17.1%</div><div class="bline-model">MLP</div></div>
+            <div class="bline-item"><div class="bline-val">9.1%</div><div class="bline-model">RF</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="clabel">Complete FPR Table — All Variables</div>
+      <div style="overflow-x:auto">
+        <table><thead><tr>
+          <th class="l">Variable</th><th class="l">Modality</th><th class="r">Share %</th>
+          <th class="r">Gradient Boosting</th><th class="r">Logistic Regression</th>
+          <th class="r">MLP</th><th class="r">Random Forest</th>
+        </tr></thead>
+        <tbody id="fpr-tbody"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- FEATURES -->
+  <div id="tab-features" class="tab-content">
+    <div class="g12">
+      <div class="card">
+        <div class="clabel">Permutation Importance — <span style="color:#f59e0b">★ financial variables highlighted</span></div>
+        <canvas id="featChart"></canvas>
+      </div>
+      <div class="col">
+        <div class="card">
+          <div class="clabel">Top 5 Predictors</div>
+          <div id="top5"></div>
+        </div>
+        <div class="card" style="border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.04)">
+          <div style="color:#f59e0b;font-weight:700;font-size:.8rem;margin-bottom:.55rem">🔑 Key Finding</div>
+          <div style="color:#8b949e;font-size:.75rem;line-height:1.65">Academic performance dominates the top 4 features. <strong style="color:#f59e0b">"Tuition fees up to date"</strong> ranks 5th at 6.72% — above unemployment rate, GDP, and all demographic variables. Financial status is structurally embedded in how the model defines "dropout risk".</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CORRELATIONS -->
+  <div id="tab-corr" class="tab-content">
+    <div class="g2 mb">
+      <div class="card" id="corr-debtor"></div>
+      <div class="card" id="corr-tuition"></div>
+    </div>
+    <div class="expl">
+      <h3>🧠 The Distributional Shift Explanation</h3>
+      <p>During training, models learn two correlations simultaneously: <strong style="color:#3b82f6">grades predict dropout</strong>, and <strong style="color:#f59e0b">financially unstable students tend to have lower grades and drop out more</strong>. In the test set, however, those correlations are weaker — financially struggling students are not necessarily poor academic performers. As a result, models penalise these students based on patterns learned in training that don't generalise, producing a systematic and unfair bias. The <strong style="color:#f59e0b">Random Forest</strong> is less affected because ensemble tree methods are architecturally designed to overfit less on training distributions.</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>★ Financial variables · UCI Student Performance Dataset · Portugal</p>
+    <p>4 models · FPR bias analysis · Permutation importance</p>
+  </div>
+</div>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────────────
+const C = { GB:'#3b82f6', LR:'#22c55e', MLP:'#a855f7', RF:'#f59e0b', amber:'#f59e0b', rose:'#f87171', blue:'#3b82f6', muted:'#8b949e', text:'#e6edf3', border:'#21262d' };
+const MC = [C.GB, C.LR, C.MLP, C.RF];
+
+const models = [
+  { model:'Gradient Boosting',  short:'GB',  accuracy:86.8, precision:82.8, recall:71.8, auc:90.9 },
+  { model:'Logistic Regression',short:'LR',  accuracy:87.8, precision:85.0, recall:73.3, auc:91.4 },
+  { model:'MLP',                short:'MLP', accuracy:85.2, precision:77.2, recall:73.7, auc:89.9 },
+  { model:'Random Forest',      short:'RF',  accuracy:86.8, precision:86.0, recall:67.9, auc:91.0 },
+];
+
+const fprGroups = [
+  { name:'Tuition (No)',   GB:64.3, LR:35.7, MLP:64.3, RF:42.9 },
+  { name:'Debtor (Yes)',   GB:28.6, LR:34.3, MLP:34.3, RF:25.7 },
+  { name:'Father Serv.',   GB:14.3, LR:9.5,  MLP:15.9, RF:12.7 },
+  { name:'Gender (M)',     GB:12.6, LR:11.4, MLP:17.1, RF:9.1  },
+  { name:'Displaced (N)',  GB:9.9,  LR:7.3,  MLP:12.4, RF:6.0  },
+  { name:'Scholarship (N)',GB:9.1,  LR:7.9,  MLP:12.6, RF:6.7  },
+  { name:'Gender (F)',     GB:4.1,  LR:3.4,  MLP:6.5,  RF:3.1  },
+  { name:'Scholarship (Y)',GB:1.1,  LR:1.1,  MLP:3.2,  RF:1.1  },
+];
+
+const features = [
+  { f:'Gender',              v:1.08,  fin:false },
+  { f:'Scholarship holder',  v:1.35,  fin:false },
+  { f:'GDP',                 v:1.65,  fin:false },
+  { f:'★ Debtor',           v:1.83,  fin:true  },
+  { f:'Unemployment rate',   v:1.83,  fin:false },
+  { f:'Prev. qual. grade',   v:2.82,  fin:false },
+  { f:'Admission grade',     v:3.06,  fin:false },
+  { f:'1st sem eval.',       v:3.36,  fin:false },
+  { f:'Age at enrollment',   v:4.00,  fin:false },
+  { f:'2nd sem eval.',       v:4.13,  fin:false },
+  { f:'★ Tuition fees',     v:6.72,  fin:true  },
+  { f:'1st sem grade',       v:7.06,  fin:false },
+  { f:'1st sem approved',    v:7.96,  fin:false },
+  { f:'2nd sem grade',       v:13.19, fin:false },
+  { f:'2nd sem approved',    v:15.09, fin:false },
+];
+
+const fullFpr = [
+  { variable:'Debtor',       modality:'No',         share:88.4, GB:5.2,  LR:3.9,  MLP:8.1,  RF:3.6,  flag:false },
+  { variable:'Debtor',       modality:'Yes',        share:11.6, GB:28.6, LR:34.3, MLP:34.3, RF:25.7, flag:true  },
+  { variable:'Displaced',    modality:'No',         share:43.7, GB:9.9,  LR:7.3,  MLP:12.4, RF:6.0,  flag:false },
+  { variable:'Displaced',    modality:'Yes',        share:56.3, GB:4.5,  LR:4.7,  MLP:7.8,  RF:4.2,  flag:false },
+  { variable:'Gender',       modality:'Female',     share:63.8, GB:4.1,  LR:3.4,  MLP:6.5,  RF:3.1,  flag:false },
+  { variable:'Gender',       modality:'Male',       share:36.2, GB:12.6, LR:11.4, MLP:17.1, RF:9.1,  flag:false },
+  { variable:'Scholarship',  modality:'No',         share:74.7, GB:9.1,  LR:7.9,  MLP:12.6, RF:6.7,  flag:false },
+  { variable:'Scholarship',  modality:'Yes',        share:25.3, GB:1.1,  LR:1.1,  MLP:3.2,  RF:1.1,  flag:false },
+  { variable:'Tuition fees', modality:'No',         share:11.1, GB:64.3, LR:35.7, MLP:64.3, RF:42.9, flag:true  },
+  { variable:'Tuition fees', modality:'Yes',        share:88.9, GB:5.2,  LR:5.0,  MLP:8.3,  RF:4.0,  flag:false },
+  { variable:'Father qual.', modality:'Basic',      share:66.7, GB:5.2,  LR:4.4,  MLP:8.4,  RF:3.9,  flag:false },
+  { variable:'Father qual.', modality:'Secondary',  share:24.8, GB:10.2, LR:7.5,  MLP:12.9, RF:7.5,  flag:false },
+  { variable:'Mother qual.', modality:'Basic',      share:58.8, GB:7.5,  LR:6.1,  MLP:9.5,  RF:5.8,  flag:false },
+  { variable:'Mother qual.', modality:'Secondary',  share:27.2, GB:3.1,  LR:2.5,  MLP:9.4,  RF:1.9,  flag:false },
+  { variable:'Nationality',  modality:'Portuguese', share:97.5, GB:6.7,  LR:5.9,  MLP:9.7,  RF:5.0,  flag:false },
+];
+
+const corrDebtor  = [
+  { m:'1st sem (approved)', test:-0.117, train:-0.107 },
+  { m:'1st sem (grade)',    test:-0.100, train:-0.112 },
+  { m:'2nd sem (approved)', test:-0.173, train:-0.147 },
+  { m:'2nd sem (grade)',    test:-0.149, train:-0.146 },
+];
+const corrTuition = [
+  { m:'1st sem (approved)', test:0.196, train:0.245 },
+  { m:'1st sem (grade)',    test:0.179, train:0.266 },
+  { m:'2nd sem (approved)', test:0.246, train:0.300 },
+  { m:'2nd sem (grade)',    test:0.231, train:0.310 },
+];
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fprCol(v) {
+  return v > 40 ? C.amber : v > 20 ? C.rose : v > 10 ? '#fbbf24' : C.text;
+}
+Chart.defaults.color = C.muted;
+Chart.defaults.borderColor = C.border;
+Chart.defaults.font.family = 'system-ui,-apple-system,sans-serif';
+Chart.defaults.font.size = 11;
+
+// ── Performance ───────────────────────────────────────────────────────────────
+const keys   = ['accuracy','precision','recall','auc'];
+const klbls  = ['Accuracy','Precision','Recall','AUC'];
+const tbody  = document.getElementById('perf-tbody');
+models.forEach((m, i) => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="l"><span class="badge" style="background:${MC[i]}22;color:${MC[i]}">${m.short}</span><span style="color:#8b949e;font-size:.78rem">${m.model}</span></td>
+    <td class="r mono" style="color:${m.accuracy>85?C.LR:C.text}">${m.accuracy.toFixed(1)}%</td>
+    <td class="r mono" style="color:${m.precision>85?C.LR:C.text}">${m.precision.toFixed(1)}%</td>
+    <td class="r mono" style="color:${m.recall>74?C.LR:C.text}">${m.recall.toFixed(1)}%</td>
+    <td class="r mono" style="color:${m.auc>90?C.LR:C.text}">${m.auc.toFixed(1)}%</td>`;
+  tbody.appendChild(tr);
+});
+
+new Chart(document.getElementById('radarChart'), {
+  type:'radar',
+  data:{
+    labels:['Accuracy','Precision','Recall','AUC'],
+    datasets: models.map((m,i) => ({
+      label: m.short, data:[m.accuracy,m.precision,m.recall,m.auc],
+      borderColor: MC[i], backgroundColor: MC[i]+'18', borderWidth:1.5, pointRadius:3
+    }))
+  },
+  options:{ animation:false,
+    scales:{ r:{ min:65, max:95, ticks:{display:false}, grid:{color:C.border}, pointLabels:{color:C.muted,font:{size:11}} } },
+    plugins:{ legend:{ labels:{ boxWidth:10, font:{size:11} } } }
+  }
+});
+
+const mbContainer = document.getElementById('minibars');
+keys.forEach((k, ki) => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.style.padding = '.85rem';
+  let html = `<div class="clabel">${klbls[ki]}</div>`;
+  models.forEach((m, i) => {
+    html += `<div class="mbar-label" style="font-size:.65rem;font-weight:700;color:${MC[i]};margin-bottom:.18rem">${m.short}</div>
+      <div class="mbar">
+        <div class="mbar-track"><div class="mbar-fill" style="width:${m[k]}%;background:${MC[i]}"></div></div>
+        <span class="mbar-val">${m[k].toFixed(1)}%</span>
+      </div>`;
+  });
+  card.innerHTML = html;
+  mbContainer.appendChild(card);
+});
+
+// ── FPR ───────────────────────────────────────────────────────────────────────
+new Chart(document.getElementById('fprChart'), {
+  type:'bar',
+  data:{
+    labels: fprGroups.map(r => r.name),
+    datasets: ['GB','LR','MLP','RF'].map((k,i) => ({
+      label:k, data: fprGroups.map(r => r[k]),
+      backgroundColor: MC[i], borderRadius:3
+    }))
+  },
+  options:{ animation:false, indexAxis:'y',
+    scales:{
+      x:{ max:70, ticks:{callback:v=>v+'%'}, grid:{color:C.border+'80'} },
+      y:{ grid:{display:false}, ticks:{color:C.text} }
+    },
+    plugins:{ legend:{labels:{boxWidth:10,font:{size:11}}}, tooltip:{callbacks:{label:ctx=>` ${ctx.dataset.label}: ${ctx.raw.toFixed(1)}%`}} }
+  }
+});
+
+function makeCallout(id, label, vals, color) {
+  let html = `<div style="font-size:.75rem;font-weight:700;color:${color};margin-bottom:.75rem">${label}</div>`;
+  vals.forEach(([m,v]) => {
+    html += `<div style="margin-bottom:.45rem">
+      <div style="display:flex;justify-content:space-between;margin-bottom:.15rem">
+        <span style="font-size:.7rem;color:#8b949e">${m}</span>
+        <span style="font-size:.7rem;font-family:monospace;font-weight:700;color:${color}">${v}%</span>
+      </div>
+      <div class="cbar-track"><div class="cbar-fill" style="width:${v}%;background:${color}"></div></div>
+    </div>`;
+  });
+  document.getElementById(id).innerHTML = html;
+}
+makeCallout('callout-tuition','Tuition fees — unpaid',[['GB',64.3],['LR',35.7],['MLP',64.3],['RF',42.9]], C.amber);
+makeCallout('callout-debtor', 'Debtor — Yes',         [['GB',28.6],['LR',34.3],['MLP',34.3],['RF',25.7]], C.rose);
+
+const fprTbody = document.getElementById('fpr-tbody');
+fullFpr.forEach(row => {
+  const tr = document.createElement('tr');
+  if (row.flag) tr.className = 'hl';
+  const ac = row.flag ? `style="color:${C.amber}"` : '';
+  const ab = row.flag ? `style="color:${C.amber};font-weight:700"` : '';
+  tr.innerHTML = `
+    <td class="l dim" ${ac}>${row.variable}</td>
+    <td class="l" ${ab}>${row.flag?'★ ':''}${row.modality}</td>
+    <td class="r mono dim">${row.share}%</td>
+    <td class="r mono" style="color:${fprCol(row.GB)};font-weight:${row.GB>20?700:400}">${row.GB.toFixed(1)}%</td>
+    <td class="r mono" style="color:${fprCol(row.LR)};font-weight:${row.LR>20?700:400}">${row.LR.toFixed(1)}%</td>
+    <td class="r mono" style="color:${fprCol(row.MLP)};font-weight:${row.MLP>20?700:400}">${row.MLP.toFixed(1)}%</td>
+    <td class="r mono" style="color:${fprCol(row.RF)};font-weight:${row.RF>20?700:400}">${row.RF.toFixed(1)}%</td>`;
+  fprTbody.appendChild(tr);
+});
+
+// ── Features ──────────────────────────────────────────────────────────────────
+new Chart(document.getElementById('featChart'), {
+  type:'bar',
+  data:{
+    labels: features.map(r => r.f),
+    datasets:[{ label:'Importance', data: features.map(r => r.v),
+      backgroundColor: features.map(r => r.fin ? C.amber : C.blue), borderRadius:3 }]
+  },
+  options:{ animation:false, indexAxis:'y',
+    scales:{
+      x:{ max:16, ticks:{callback:v=>v+'%'}, grid:{color:C.border+'80'} },
+      y:{ grid:{display:false}, ticks:{color:C.text, font:{size:10}} }
+    },
+    plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>` ${ctx.raw.toFixed(2)}%`}} }
+  }
+});
+
+const top5 = document.getElementById('top5');
+[...features].reverse().slice(0,5).forEach((f, i) => {
+  const pct = (f.v/15.09)*100;
+  const col = f.fin ? C.amber : C.blue;
+  const div = document.createElement('div');
+  div.className = 'feat-row';
+  div.innerHTML = `
+    <div class="feat-rank">${i+1}</div>
+    <div style="flex:1">
+      <div class="feat-lbl" style="color:${col}">${f.f}</div>
+      <div class="feat-track" style="height:4px;background:#21262d;border-radius:2px"><div style="width:${pct}%;height:100%;background:${col};border-radius:2px"></div></div>
+    </div>
+    <span class="feat-val" style="color:${col}">${f.v.toFixed(2)}%</span>`;
+  top5.appendChild(div);
+});
+
+// ── Correlations ──────────────────────────────────────────────────────────────
+function makeCorrCard(elId, data, color, title, note) {
+  let html = `
+    <div style="display:flex;align-items:center;gap:.45rem;margin-bottom:.85rem">
+      <div class="accent-bar" style="height:1rem;background:${color}"></div>
+      <span style="font-weight:700;font-size:.82rem">${title}</span>
+      <span style="font-size:.7rem;color:#8b949e">correlation with grades</span>
+    </div>
+    <table><thead><tr>
+      <th class="l">Metric</th>
+      <th class="r" style="color:#60a5fa">Test</th>
+      <th class="r" style="color:#34d399">Train</th>
+      <th class="r" style="color:${color}">Δ</th>
+    </tr></thead><tbody>`;
+  data.forEach(r => {
+    const d = (r.test - r.train).toFixed(3);
+    html += `<tr>
+      <td class="l">${r.m}</td>
+      <td class="r mono" style="color:#60a5fa">${r.test.toFixed(3)}</td>
+      <td class="r mono" style="color:#34d399">${r.train.toFixed(3)}</td>
+      <td class="r mono" style="color:${color};font-size:.72rem">${parseFloat(d)>0?'+':''}${d}</td>
+    </tr>`;
+  });
+  html += `</tbody></table>
+    <div class="insight" style="background:${color}11;border:1px solid ${color}33;margin-top:.75rem">${note}</div>`;
+  document.getElementById(elId).innerHTML = html;
+}
+
+makeCorrCard('corr-debtor', corrDebtor, C.rose, 'Debtor (Yes)',
+  `Correlations are <strong style="color:${C.rose}">relatively stable</strong> between Train and Test — suggesting structural bias rather than distributional shift.`);
+makeCorrCard('corr-tuition', corrTuition, C.amber, 'Tuition fees (No)',
+  `Train correlations are <strong style="color:${C.amber}">significantly stronger</strong> than Test — models overlearn the "fees unpaid → low grades → dropout" pattern.`);
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function showTab(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+</body>
+</html>
